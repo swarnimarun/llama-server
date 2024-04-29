@@ -11,7 +11,7 @@ struct BetterLlamaServer {
     #[arg(long, short = 'o', default_value_t = String::from("0.0.0.0"))]
     /// host to be bound
     host: String,
-    #[arg(long, short, default_value_t = String::from("QuantFactory/Meta-Llama-3-8B-GGUF"))]
+    #[arg(long, short, default_value_t = String::from("lmstudio-community/Meta-Llama-3-8B-Instruct-GGUF"))]
     /// Model path within the image, likely volume mounted.
     /// Or, model repo ID from Hugging Face
     model: String,
@@ -26,6 +26,10 @@ struct BetterLlamaServer {
 }
 
 fn main() -> anyhow::Result<()> {
+    ctrlc::set_handler(move || {
+        panic!("SIGTERM requested, exiting without cleanup.");
+    })?;
+
     let BetterLlamaServer {
         port,
         host,
@@ -44,6 +48,7 @@ fn main() -> anyhow::Result<()> {
         let gitattributes = api.get(".gitattributes")?;
         let files = std::fs::read_to_string(gitattributes)?;
         let model_files = files.lines().filter_map(|s| {
+            // split the file names for all the large gguf files from gitattrs
             if s.contains(".gguf filter") {
                 s.split(' ').next()
             } else {
@@ -65,6 +70,8 @@ fn main() -> anyhow::Result<()> {
                         .to_str()
                         .context("Failed to convert path os_str to str")?
                         .to_string();
+                    // early exit if correct model is found.
+                    break;
                 }
             }
         }
